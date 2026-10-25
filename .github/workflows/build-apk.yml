@@ -1,4 +1,4 @@
-name: Build Android APK
+ name: Build Native Android APK
 
 on:
   push:
@@ -13,35 +13,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Create Android WebView Project
+      - name: Create Native Android Project Structure
         run: |
-          # Android SDK build-tools va platform-tools orqali oddiy tuzilma yasaymiz
-          mkdir -p my-android-app/app/src/main/assets/www
-          mkdir -p my-android-app/app/src/main/java/com/itcoders/app
-          mkdir -p my-android-app/app/src/main/res/values
+          mkdir -p android_project/app/src/main/java/uz/itcoders/app
+          mkdir -p android_project/app/src/main/res/values
+          mkdir -p android_project/app/src/main/res/mipmap-hdpi
 
-          # Veb-sayt fayllarini nusxalaymiz
-          cp *.html my-android-app/app/src/main/assets/www/ || true
-          cp -r css js images my-android-app/app/src/main/assets/www/ 2>/dev/null || true
-
-          # Manifest fayl yaratamiz
-          cat << 'EOF' > my-android-app/app/src/main/AndroidManifest.xml
+          # 1. AndroidManifest.xml yaratamiz
+          cat << 'EOF' > android_project/app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.itcoders.app">
+              package="uz.itcoders.app">
+              
               <uses-permission android:name="android.permission.INTERNET"/>
+              
               <application
                   android:allowBackup="true"
                   android:label="IT Coders"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
                   android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -54,39 +50,112 @@ jobs:
           </manifest>
           EOF
 
-          # MainActivity.java yaratamiz (saytni ochib beruvchi WebView)
-          cat << 'EOF' > my-android-app/app/src/main/java/com/itcoders/app/MainActivity.java
-          package com.itcoders.app;
+          # 2. MainActivity.java (Saytingizni to'g'ridan-to'g'ri ilova ichida ochuvchi qism)
+          cat << 'EOF' > android_project/app/src/main/java/uz/itcoders/app/MainActivity.java
+          package uz.itcoders.app;
+
           import android.app.Activity;
           import android.os.Bundle;
+          import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
 
           public class MainActivity extends Activity {
               private WebView webView;
+
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  
                   webView = new WebView(this);
-                  webView.getSettings().setJavaScriptEnabled(true);
+                  WebSettings webSettings = webView.getSettings();
+                  webSettings.setJavaScriptEnabled(true);
+                  webSettings.setDomStorageEnabled(true);
+                  
                   webView.setWebViewClient(new WebViewClient());
-                  // Onrenderdagi saytingizni to'g'ridan-to'g'ri ilovada ochadi
+                  // Onrenderdagi saytingiz havolasi
                   webView.loadUrl("https://itcoders-op1-site.onrender.com");
+                  
                   setContentView(webView);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
               }
           }
           EOF
 
+          # 3. build.gradle (App darajasidagi)
+          cat << 'EOF' > android_project/app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "uz.itcoders.app"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
+
+          # 4. build.gradle (Loyihaning asosiy darajasi)
+          cat << 'EOF' > android_project/build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.1'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          # 5. settings.gradle
+          cat << 'EOF' > android_project/settings.gradle
+          rootProject.name = "ITCodersApp"
+          include ':app'
+          EOF
+
+          # 6. gradle.properties
+          echo "android.useAndroidX=true" > android_project/gradle.properties
+
       - name: Build APK with Gradle
         run: |
-          cd my-android-app
-          # Gradle wrapper yaratib APK quramiz
+          cd android_project
           gradle wrapper
-          ./gradlew build || true
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: IT-Coders-APK
-          path: my-android-app/**/*.apk
+          name: IT-Coders-Native-APK
+          path: android_project/app/build/outputs/apk/debug/app-debug.apk
           
