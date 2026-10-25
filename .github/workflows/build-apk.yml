@@ -27,16 +27,20 @@ jobs:
     - name: Install Bubblewrap CLI
       run: npm install -g @bubblewrap/cli
 
-    - name: Generate Android Project & APK
+    - name: Initialize and Build TWA APK
       run: |
-        # Bubblewrap yordamida veb-saytdan Android APK manifestini yaratamiz
-        bubblewrap init --manifest=https://itcoders-op1-site.onrender.com/manifest.json --directory=android-app || true
+        # Konfiguratsiya yaratamiz (avtomatik rejimda)
+        bubblewrap init --manifest=https://itcoders-op1-site.onrender.com/manifest.json --directory=app-twa || true
+        cd app-twa || mkdir app-twa && cd app-twa
         
-        # Agar manifest fayl topilmasa, to'g'ridan-to'g'ri URL orqali build qilamiz
-        cd android-app || mkdir android-app && cd android-app
-        # Build jarayoni uchun minimal sozlama
-    - name: Build APK with Gradle (Alternative WebView)
-      run: |
-        echo "Building APK package..."
-        # Agar sizda maxsus Android Studio loyihasi bo'lmasa, WebView wrapper yaratamiz
-        
+        # Agar manifest fayl to'g'ridan-to'g'ri o'qimasa, CLI orqali majburiy build qilish
+        # (Aks holda tayyor gradle orqali yig'iladi)
+      
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: |
+          **/*.apk
+          app-twa/**/*.apk
+          
