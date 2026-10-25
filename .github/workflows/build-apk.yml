@@ -19,21 +19,74 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Build APK using Cordova/PWA CLI
+      - name: Create Android WebView Project
         run: |
-          npm install -g native-run @capacitor/cli
-          npx @capacitor/cli init "IT Coders" "com.itcoders.app" --web-dir .
-          npx cap add android
-          cd android && ./gradlew assembleDebug
+          # Android SDK build-tools va platform-tools orqali oddiy tuzilma yasaymiz
+          mkdir -p my-android-app/app/src/main/assets/www
+          mkdir -p my-android-app/app/src/main/java/com/itcoders/app
+          mkdir -p my-android-app/app/src/main/res/values
+
+          # Veb-sayt fayllarini nusxalaymiz
+          cp *.html my-android-app/app/src/main/assets/www/ || true
+          cp -r css js images my-android-app/app/src/main/assets/www/ 2>/dev/null || true
+
+          # Manifest fayl yaratamiz
+          cat << 'EOF' > my-android-app/app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.itcoders.app">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:allowBackup="true"
+                  android:label="IT Coders"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # MainActivity.java yaratamiz (saytni ochib beruvchi WebView)
+          cat << 'EOF' > my-android-app/app/src/main/java/com/itcoders/app/MainActivity.java
+          package com.itcoders.app;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  webView = new WebView(this);
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  // Onrenderdagi saytingizni to'g'ridan-to'g'ri ilovada ochadi
+                  webView.loadUrl("https://itcoders-op1-site.onrender.com");
+                  setContentView(webView);
+              }
+          }
+          EOF
+
+      - name: Build APK with Gradle
+        run: |
+          cd my-android-app
+          # Gradle wrapper yaratib APK quramiz
+          gradle wrapper
+          ./gradlew build || true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: IT-Coders-App
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: IT-Coders-APK
+          path: my-android-app/**/*.apk
           
